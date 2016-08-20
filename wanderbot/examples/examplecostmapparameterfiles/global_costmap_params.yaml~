@@ -1,0 +1,23 @@
+#Independent settings for the planner's costmap
+global_costmap:
+    #publish_voxel_map: true
+    global_frame: /map
+    robot_base_frame: /base_footprint
+    update_frequency: 3.0
+    publish_frequency: 3.0
+    static_map: true
+    rolling_window: false
+    plugins:
+     -
+       name: static_layer
+       type: "costmap_2d::StaticLayer"
+     -
+       name: obstacle_layer
+       #type: "costmap_2d::ObstacleLayer"
+       type: "costmap_2d::VoxelLayer"
+     -
+       name: inflation_layer
+       type: "costmap_2d::InflationLayer"
+     -
+       name: static_region_map
+       type: "costmap_2d::StaticRegionLayer"

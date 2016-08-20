@@ -1,0 +1,16 @@
+#!/bin/bash
+source /opt/ros/indigo/setup.bash
+source ~/wanderbot_ws/devel/setup.bash
+i="1" #argument index 
+n="11"
+name=$1
+cd /home/brandon/wanderbot_ws/src/wanderbot/bags
+mkdir $name
+cd /home/brandon/wanderbot_ws/src/wanderbot/bags/$name
+while [ $i -lt $n ] ; do
+	rosbag play /home/brandon/wanderbot_ws/src/wanderbot/bags/master/master.bag $
+	sleep 3
+	rosbag record -O $name_$i amcl_pose ground_truth $
+	sleep6 0
+	i=$[$i+1]
+	done

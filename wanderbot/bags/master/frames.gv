@@ -1,0 +1,19 @@
+digraph G {
+"base_link" -> "drive_left_wheel"[label="Broadcaster: /play_1471410272013714518\nAverage rate: 46.881 Hz\nMost recent transform: 179.501 ( 0.020 sec old)\nBuffer length: 4.970 sec\n"];
+"odom" -> "base_link"[label="Broadcaster: /play_1471410272013714518\nAverage rate: 62.312 Hz\nMost recent transform: 179.436 ( 0.085 sec old)\nBuffer length: 4.975 sec\n"];
+"base_link" -> "drive_right_wheel"[label="Broadcaster: /play_1471410272013714518\nAverage rate: 46.881 Hz\nMost recent transform: 179.501 ( 0.020 sec old)\nBuffer length: 4.970 sec\n"];
+"map" -> "odom"[label="Broadcaster: /amcl\nAverage rate: 78.392 Hz\nMost recent transform: 179.536 ( -0.015 sec old)\nBuffer length: 4.975 sec\n"];
+"base_link" -> "hokuyo_link"[label="Broadcaster: /play_1471410272013714518\nAverage rate: 50.201 Hz\nMost recent transform: 180.020 ( -0.499 sec old)\nBuffer length: 4.980 sec\n"];
+"base_link" -> "back_left_caster"[label="Broadcaster: /play_1471410272013714518\nAverage rate: 45.281 Hz\nMost recent transform: 179.511 ( 0.010 sec old)\nBuffer length: 4.969 sec\n"];
+"back_left_caster" -> "back_left_wheel"[label="Broadcaster: /play_1471410272013714518\nAverage rate: 45.281 Hz\nMost recent transform: 179.511 ( 0.010 sec old)\nBuffer length: 4.969 sec\n"];
+"base_link" -> "back_right_caster"[label="Broadcaster: /play_1471410272013714518\nAverage rate: 45.281 Hz\nMost recent transform: 179.511 ( 0.010 sec old)\nBuffer length: 4.969 sec\n"];
+"back_right_caster" -> "back_right_wheel"[label="Broadcaster: /play_1471410272013714518\nAverage rate: 45.281 Hz\nMost recent transform: 179.511 ( 0.010 sec old)\nBuffer length: 4.969 sec\n"];
+"base_link" -> "front_left_caster"[label="Broadcaster: /play_1471410272013714518\nAverage rate: 45.281 Hz\nMost recent transform: 179.511 ( 0.010 sec old)\nBuffer length: 4.969 sec\n"];
+"front_left_caster" -> "front_left_wheel"[label="Broadcaster: /play_1471410272013714518\nAverage rate: 45.281 Hz\nMost recent transform: 179.511 ( 0.010 sec old)\nBuffer length: 4.969 sec\n"];
+"base_link" -> "front_right_caster"[label="Broadcaster: /play_1471410272013714518\nAverage rate: 45.281 Hz\nMost recent transform: 179.511 ( 0.010 sec old)\nBuffer length: 4.969 sec\n"];
+"front_right_caster" -> "front_right_wheel"[label="Broadcaster: /play_1471410272013714518\nAverage rate: 45.281 Hz\nMost recent transform: 179.511 ( 0.010 sec old)\nBuffer length: 4.969 sec\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 179.521"[ shape=plaintext ] ;
+ }->"map";
+}

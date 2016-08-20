@@ -1,0 +1,95 @@
+#! /usr/bin/env python
+
+import rospy
+import numpy as np
+from sensor_msgs.msg import LaserScan
+
+rospy.init_node('laser_filter')
+# setting some parameters based off the desired simulated laser
+# max settings refer to the actual hardware,
+# or GPU ray trace settings desribed in the URDF if using Gazebo simulator
+
+
+# !!!! all are assumed to be integers despite the liberal use of integer casting!!!!#
+#note: 0 degrees is forward bearing
+new_max_range = 4.
+new_min_range = .2
+left_angle_cutoff = 180.
+right_angle_cutoff = 180.
+left_angle_max = 180.
+right_angle_max = 180.
+max_resolution = 720.
+halfres = True # XV-11 Lidar is 360 points per revolution		
+max_fov = left_angle_max + right_angle_max
+max_increment = max_fov/max_resolution
+
+left_indice_cutoff = int(left_angle_cutoff/max_increment + max_resolution/2)
+right_indice_cutoff = int(max_resolution/2 - right_angle_cutoff/max_increment)
+
+left_indice_mask = np.arange(left_indice_cutoff,int(max_resolution))
+right_indice_mask = np.arange(0,right_indice_cutoff)
+
+#if noise is set True then apply random guassian noise to laser data
+#using the following parameters
+noise = True
+stdv_noise = .025
+mean = 0
+
+
+new = LaserScan()
+
+#TODO queue_size is pretty arbitrarily picked from something I saw on the internet
+scan_pub  =   rospy.Publisher('scan_filtered',LaserScan,queue_size=10)
+
+def scan_callback(old):
+    #setting evert LaserScan message equal to the old /scan topic that comes
+    #from gazebo GPU ray tracing (for simulation)
+    new.angle_min = old.angle_min
+    new.angle_max = old.angle_max
+    new.angle_increment = old.angle_increment
+    new.time_increment = old.time_increment
+    new.scan_time = old.scan_time
+    new.range_min = old.range_min
+    new.range_max = old.range_max
+    new.ranges = old.ranges
+    new.intensities = old.intensities
+
+
+    #setting new min and max laser ranges
+    new.range_min = new_min_range
+    new.range_max = new_max_range
+
+    #convert new.ranges to a numpy array to support indice broadcasting
+    numpy_ranges = np.array(new.ranges)
+
+    #apply guassian noise if noise = True
+    if noise:
+        noise_array = np.random.normal(mean,stdv_noise,max_resolution)
+        numpy_ranges+=noise_array
+
+
+    #stripping out data based on new desired fov
+    numpy_ranges[left_indice_mask] = float('nan')
+    numpy_ranges[right_indice_mask] = float('nan')
+
+    # testing (produces a backward cone with 180 degree fov)
+    #spoilers: it runs into walls
+    #numpy_ranges[np.arange(180,540)] = float('nan')
+
+    #Changing Resolution if halfres is True
+    if halfres:
+        numpy_ranges[::2] = float('nan')
+
+    #pushing value of stripped numpy_array back into new.ranges
+    new.ranges = numpy_ranges
+
+    #publishing on the new /scan_filtered topic after setting the header to the old /scan header
+    new.header.seq = old.header.seq
+    new.header.stamp = old.header.stamp
+    new.header.frame_id = old.header.frame_id
+    scan_pub.publish(new)
+
+#subscribing to the /scan topic published by Gazebo if in simulation
+scan_sub  =   rospy.Subscriber('scan', LaserScan,scan_callback)
+
+rospy.spin()

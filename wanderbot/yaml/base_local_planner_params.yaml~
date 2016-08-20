@@ -1,0 +1,44 @@
+planner_frequency: .25
+TrajectoryPlannerROS:
+    acc_lim_x: 4.0
+    acc_lim_y: 4.0
+    acc_lim_theta: 180.0
+    max_vel_x: 1.5
+    min_vel_x: 0.05
+    max_rotational_vel: 180.0
+    min_in_place_rotational_vel: 0.4
+    escape_vel: -0.2
+    holonomic_robot: false
+
+    # Goal Tolerance Parameters
+    xy_goal_tolerance: 0.2
+    yaw_goal_tolerance: 0.2
+
+    # Forward Simulation Parameters
+    sim_time: 1.0
+    sim_granularity: 0.02
+    vx_samples: 20
+    vtheta_samples: 20
+
+    # Trajectory Scoring Parameters
+    meter_scoring: true
+    pdist_scale: .6 #default: 0.6
+#The weighting for how much the controller should stay close to the path it was given 
+    gdist_scale: 0.2 #defalt 0.8
+#The weighting for how much the controller should attempt to reach its local goal, also controls speed 
+    occdist_scale: .02 #default: 0.01
+#The weighting for how much the controller should attempt to avoid obstacles 
+    heading_lookahead: 0.325 #(double, default: 0.325)
+#How far to look ahead in meters when scoring different in-place-rotation trajectories 
+    heading_scoring: false #(bool, default: false)
+#Whether to score based on the robot's heading to the path or its distance from the path 
+    heading_scoring_timestep: 0.8 #(double, default: 0.8)
+#How far to look ahead in time in seconds along the simulated trajectory when using heading scoring 
+    dwa: true #(bool, default: true)
+    publish_cost_grid_pc: true #(bool, default: false)
+
+
+    # Oscillation Prevention Parameters
+    oscillation_reset_dist: 0.05
+
+  

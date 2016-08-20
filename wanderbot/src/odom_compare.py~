@@ -1,0 +1,256 @@
+#! /usr/bin/env python
+import shapely.geometry
+import rospy
+import rosbag
+import sys
+from nav_msgs.msg import Odometry
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy.interpolate
+import sys
+
+plots = False
+sys.setrecursionlimit(3000) # needed for deep recursions through ground_truth data
+s = str(sys.argv[1])
+n = str(sys.argv[2])
+filepath = "/home/brandon/wanderbot_ws/src/wanderbot/bags/{}".format(s)
+bagpath = "/home/brandon/wanderbot_ws/src/wanderbot/bags/{}/{}_{}.bag".format(s,s,n)
+textpath = "/home/brandon/wanderbot_ws/src/wanderbot/bags/{}/{}.txt".format(s,s)
+bag = rosbag.Bag(bagpath)
+ground_truth_x =[]
+ground_truth_y =[]
+ground_truth_time = []
+amcl_pose_x=[]
+amcl_pose_y=[]
+amcl_pose_time =[]
+
+
+### Reading From the Bag and getting {t,(x,y)} from both amcl and truth poses ###
+
+for topic, msg,t in bag.read_messages(topics=['ground_truth']):
+    ground_truth_x.append(msg.pose.pose.position.x)
+    ground_truth_y.append(msg.pose.pose.position.y)
+    ground_truth_time.append(t)
+
+
+
+for topic, msg,t in bag.read_messages(topics=['amcl_pose']):
+    amcl_pose_x.append(msg.pose.pose.position.x)
+    amcl_pose_y.append(msg.pose.pose.position.y)
+    amcl_pose_time.append(t)
+
+
+#############################################################################
+
+######## Getting the time and pose arrays into useful (numpy) format ########
+for i in range(len(ground_truth_time)):
+    ground_truth_time[i] = ground_truth_time[i].to_sec()
+for i in range(len(amcl_pose_time)):
+    amcl_pose_time[i] = amcl_pose_time[i].to_sec()
+bag.close()
+### Convert everything into numpy arrays ###
+ground_truth_x = np.array(ground_truth_x)
+ground_truth_y = np.array(ground_truth_y)
+amcl_pose_x = np.array(amcl_pose_x)
+amcl_pose_y = np.array(amcl_pose_y)
+ground_truth_time = np.array(ground_truth_time)
+amcl_pose_time = np.array(amcl_pose_time)
+#####################################################
+#####################################################
+
+### Zeroing the initial time so that t0 = 0 ###
+ground_truth_time -= ground_truth_time[0]
+amcl_pose_time -= amcl_pose_time[0]
+###############################################
+
+
+
+## Interpolating AMCL poses against the time from Ground Truth ###
+amcl_pose_x_interp_in_time = np.interp(ground_truth_time,amcl_pose_time,amcl_pose_x)
+amcl_pose_y_interp_in_time = np.interp(ground_truth_time,amcl_pose_time,amcl_pose_y)
+#################################################
+
+
+### Finding each orthogonal, time-dependent discrepancy ###
+discrepancy_x = amcl_pose_x_interp_in_time - ground_truth_x
+discrepancy_y = amcl_pose_y_interp_in_time - ground_truth_y
+###########################################################
+
+################################################
+### Doing the L2 metrics time integrals  #######
+################################################
+disc_mag_i = np.zeros(len(ground_truth_time))
+disc_mag_i = np.sqrt((ground_truth_x - amcl_pose_x_interp_in_time)**2 + (ground_truth_y - amcl_pose_y_interp_in_time)**2)
+disc_mag_i_squared = disc_mag_i**2
+disc_mag_i-=disc_mag_i[0] #this line makes the discrepancy start at 0 at t0
+disc_mag_i_squared -= disc_mag_i_squared[0] #ditto
+disc_scalar = np.trapz(abs(disc_mag_i),ground_truth_time,dx=.001) #Adding up all the discrepancies over time
+disc_scalar_squared = np.trapz(abs(disc_mag_i_squared),ground_truth_time,dx=.001)
+################################################
+print('The sum of L2 norms : ',disc_scalar)
+print('The sum of squares of L2 norms : ',disc_scalar_squared)
+
+################################################
+### Finding the Area between the two curves  ###
+################################################
+polygon_vertices = []
+ground_truth_y_reversed = ground_truth_y[::-1]
+ground_truth_x_reversed = ground_truth_x[::-1]
+for i in range(len(amcl_pose_y)):
+    polygon_vertices.append((amcl_pose_x[i],amcl_pose_y[i]))
+for i in range(len(ground_truth_y_reversed)):
+    polygon_vertices.append((ground_truth_x_reversed[i],ground_truth_y_reversed[i]))
+polygon = shapely.geometry.Polygon(polygon_vertices)
+area=polygon.area
+print('The area between the curves is : ',area)
+
+################################################
+################################################
+
+
+##############################
+#### Frechet Distance Code ###
+####   Credit MaxBarelss   ###
+##############################
+
+# Euclidean distance.
+def euc_dist(pt1,pt2):
+    return np.sqrt((pt2[0]-pt1[0])*(pt2[0]-pt1[0])+(pt2[1]-pt1[1])*(pt2[1]-pt1[1]))
+#Frechet Distance
+def _c(ca,i,j,P,Q):
+    if ca[i,j] > -1:
+        return ca[i,j]
+    elif i == 0 and j == 0:
+        ca[i,j] = euc_dist(P[0],Q[0])
+    elif i > 0 and j == 0:
+        ca[i,j] = max(_c(ca,i-1,0,P,Q),euc_dist(P[i],Q[0]))
+    elif i == 0 and j > 0:
+        ca[i,j] = max(_c(ca,0,j-1,P,Q),euc_dist(P[0],Q[j]))
+    elif i > 0 and j > 0:
+        ca[i,j] = max(min(_c(ca,i-1,j,P,Q),_c(ca,i-1,j-1,P,Q),_c(ca,i,j-1,P,Q)),euc_dist(P[i],Q[j]))
+    else:
+        ca[i,j] = float("inf")
+    return ca[i,j]
+#Algorithm: http://www.kr.tuwien.ac.at/staff/eiter/et-archive/cdtr9464.pdf
+
+def frechetDist(P,Q):
+    ca = np.ones((len(P),len(Q)))
+    ca = np.multiply(ca,-1)
+    return _c(ca,len(P)-1,len(Q)-1,P,Q)
+
+#Setting up 2-tuple arrays P and Q to be in the expected form
+#For the function _c()
+P = []
+for i in range(len(amcl_pose_x)):
+    P.append((amcl_pose_x[i],amcl_pose_y[i]))
+Q = []
+for i in range(len(ground_truth_x)):
+    Q.append((ground_truth_x[i],ground_truth_y[i]))
+P = np.array(P)
+Q = np.array(Q)
+
+FD = frechetDist(P,Q)
+print('Frechet Distance is : ', FD)
+
+
+
+
+######################
+# Writing Data File ##
+######################
+with open(textpath,'a') as text_file:
+    text_file.write('{}_{}\n'.format(s,n))
+    text_file.write('L2,{0}\nL2S,{1}\nAR,{2}\nFD,{3}\n'.format(disc_scalar,disc_scalar_squared,area,FD))
+
+
+
+
+#############################
+### Commence the Plotting ###
+#############################
+
+if plots:
+    fig_time_plots = plt.figure(1)
+    plt.subplot(221)
+    plt.plot(amcl_pose_time,amcl_pose_x)
+    plt.xlabel('Time(s)')
+    plt.ylabel('Position(m)')
+    plt.title('AMCL x-position')
+    plt.subplot(222)
+    plt.plot(amcl_pose_time,amcl_pose_y)
+    plt.xlabel('Time(s)')
+    plt.ylabel('Position(m)')
+    plt.title('AMCL y-position')
+    plt.subplot(223)
+    plt.plot(ground_truth_time,ground_truth_x)
+    plt.xlabel('Time(s)')
+    plt.ylabel('Position(m)')
+    plt.title('Ground Truth x-position')
+    plt.subplot(224)
+    plt.plot(ground_truth_time,ground_truth_y)
+    plt.xlabel('Time(s)')
+    plt.ylabel('Position(m)')
+    plt.title('Ground Truth y-position')
+
+    fig_paths = plt.figure(2)
+    plt.subplot(131)
+    plt.plot(amcl_pose_x,amcl_pose_y, label = 'AMCL Path')
+    plt.title('AMCL Path')
+    plt.xlabel('x-position(m)')
+    plt.ylabel('y-position(m)')
+    plt.subplot(132)
+    plt.plot(ground_truth_x,ground_truth_y, label = 'True Path')
+    plt.title('Ground Truth Path')
+    plt.xlabel('x-position(m)')
+    plt.ylabel('y-position(m)')
+    plt.subplot(133)
+    plt.plot(ground_truth_x,ground_truth_y, label = 'True Path')
+    plt.plot(amcl_pose_x,amcl_pose_y, label = 'AMCL Path')
+    plt.title('Both on same graph')
+    plt.xlabel('x-position(m)')
+    plt.ylabel('y-position(m)')
+
+    fig_ground_truth = plt.figure(7)
+    plt.plot(ground_truth_x,ground_truth_y, label = 'True Path')
+    plt.title('Ground Truth Path')
+    plt.xlabel('x-position(m)')
+    plt.ylabel('y-position(m)')
+
+
+    value = str(disc_scalar)
+    fig_l2 = plt.figure(3)
+    plt.subplot(111)
+    plt.fill_between(ground_truth_time,disc_mag_i,interpolate=True)
+    plt.xlabel('Time(s)')
+    plt.ylabel(r'$\Delta$ poses since bag record start time')
+    plt.title('L2 norm integral: '+value)
+
+
+    value = str(disc_scalar_squared)
+    fig_l2_squared = plt.figure(6)
+    plt.subplot(111)
+    plt.fill_between(ground_truth_time,disc_mag_i_squared,interpolate=True)
+    plt.xlabel('Time(s)')
+    plt.ylabel(r'$\Delta$ poses squared since bag record start time')
+    plt.title('L2 squared norm integral: '+value)
+
+
+    fig_vector_error = plt.figure(4)
+    plt.subplot(121)
+    plt.plot(ground_truth_time,discrepancy_x)
+    plt.title('discrepancy_x')
+    plt.xlabel('Time(s)')
+    plt.ylabel('Discrepancy Between X direction AMCL and Truth (m)')
+    plt.subplot(122)
+    plt.plot(ground_truth_time,discrepancy_y)
+    plt.title('discrepancy_y')
+    plt.xlabel('Time(s)')
+    plt.ylabel('Discrepancy Between Y direction AMCL and Truth (m)')
+
+    plt.show()
+##################
+##################
+
+
+
+#fig_ground_truth.savefig('{}_{}.png'.format(s,n)) # if you just want to show ground truth plots (For UT Austin Stuff)
